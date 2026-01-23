@@ -1,0 +1,4 @@
+# Arquivos temporários
+*.log
+*.pid
+nohup.out
