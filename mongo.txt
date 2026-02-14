@@ -1,0 +1,4 @@
+fa-user
+uv7gWjde6Pqs0hJM
+
+mongodb+srv://<db_username>:<db_password>@psicoadm.qv4tpmf.mongodb.net/?appName=psicoAdm

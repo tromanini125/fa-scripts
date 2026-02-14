@@ -69,6 +69,7 @@ echo -e "${YELLOW}Verificando e limpando portas em uso...${NC}"
 
 kill_port 8080 "Auth Service"
 kill_port 8083 "Schedule Service"
+kill_port 8084 "Stock Service"
 kill_port 3000 "BFF"
 kill_port 5173 "Frontend"
 
@@ -273,9 +274,74 @@ EOF
     fi
 fi
 
-# 4. Configurar e iniciar BFF (fa-admin-bff)
+# 4. Configurar e iniciar Stock Service (fa-stock-service)
 echo ""
-echo -e "${BLUE}4. Configurando BFF (fa-admin-bff)...${NC}"
+echo -e "${BLUE}4. Configurando Stock Service (fa-stock-service)...${NC}"
+
+STOCK_DIR="$BASE_DIR/fa-stock-service"
+
+if [ ! -d "$STOCK_DIR" ]; then
+    echo -e "${YELLOW}⚠ Diretório fa-stock-service não encontrado (serviço opcional)${NC}"
+else
+    cd "$STOCK_DIR"
+
+    # Criar .env se não existir
+    if [ ! -f .env ]; then
+        echo -e "${YELLOW}Criando arquivo .env para Stock Service...${NC}"
+        cat > .env << EOF
+MONGODB_URI=mongodb://root:root@localhost:27017
+MONGODB_DATABASE=farm_automation_stock
+JWT_SECRET=farm-automation-super-secret-key-change-in-production-2026
+PORT=8084
+EOF
+        echo -e "${GREEN}✓ Arquivo .env criado${NC}"
+    else
+        echo -e "${YELLOW}Atualizando JWT_SECRET no .env...${NC}"
+        sed -i "s|^JWT_SECRET=.*|JWT_SECRET=farm-automation-super-secret-key-change-in-production-2026|" .env
+        echo -e "${GREEN}✓ JWT_SECRET atualizado${NC}"
+    fi
+
+    # Baixar dependências Go
+    echo -e "${YELLOW}Baixando dependências Go...${NC}"
+    go mod download
+
+    # Compilar
+    echo -e "${YELLOW}Compilando Stock Service...${NC}"
+    go build -o bin/fa-stock-service cmd/api/main.go
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Stock Service compilado com sucesso${NC}"
+    else
+        echo -e "${RED}❌ Erro ao compilar Stock Service${NC}"
+        exit 1
+    fi
+
+    # Criar diretório de logs se não existir
+    mkdir -p logs
+
+    # Iniciar Stock Service em background
+    echo -e "${YELLOW}Iniciando Stock Service...${NC}"
+    nohup ./bin/fa-stock-service > logs/stock.log 2>&1 &
+    STOCK_PID=$!
+    echo $STOCK_PID > .stock.pid
+
+    sleep 3
+
+    # Verificar se Stock Service está rodando
+    if kill -0 $STOCK_PID 2>/dev/null; then
+        echo -e "${GREEN}✓ Stock Service iniciado (PID: $STOCK_PID)${NC}"
+        echo -e "   URL: http://localhost:8084"
+        echo -e "   Health: http://localhost:8084/health"
+    else
+        echo -e "${RED}❌ Erro ao iniciar Stock Service${NC}"
+        cat logs/stock.log
+        exit 1
+    fi
+fi
+
+# 5. Configurar e iniciar BFF (fa-admin-bff)
+echo ""
+echo -e "${BLUE}5. Configurando BFF (fa-admin-bff)...${NC}"
 
 BFF_DIR="$BASE_DIR/fa-admin-bff"
 
@@ -294,6 +360,7 @@ PORT=3000
 JWT_SECRET=chacara-romanini-secret-key-2026
 AUTH_SERVICE_URL=http://localhost:8080
 SCHEDULE_SERVICE_URL=http://localhost:8083
+STOCK_SERVICE_URL=http://localhost:8084
 OPENWEATHER_API_KEY=
 EOF
     echo -e "${GREEN}✓ Arquivo .env criado${NC}"
@@ -306,6 +373,12 @@ else
         echo "SCHEDULE_SERVICE_URL=http://localhost:8083" >> .env
     else
         sed -i "s|^SCHEDULE_SERVICE_URL=.*|SCHEDULE_SERVICE_URL=http://localhost:8083|" .env
+    fi
+    # Adicionar STOCK_SERVICE_URL se não existir
+    if ! grep -q "STOCK_SERVICE_URL" .env; then
+        echo "STOCK_SERVICE_URL=http://localhost:8084" >> .env
+    else
+        sed -i "s|^STOCK_SERVICE_URL=.*|STOCK_SERVICE_URL=http://localhost:8084|" .env
     fi
     echo -e "${GREEN}✓ .env atualizado${NC}"
 fi
@@ -347,9 +420,9 @@ else
     exit 1
 fi
 
-# 5. Configurar e iniciar Frontend (fa-admin-web)
+# 6. Configurar e iniciar Frontend (fa-admin-web)
 echo ""
-echo -e "${BLUE}5. Configurando Frontend (fa-admin-web)...${NC}"
+echo -e "${BLUE}6. Configurando Frontend (fa-admin-web)...${NC}"
 
 FRONTEND_DIR="$BASE_DIR/fa-admin-web"
 
@@ -411,6 +484,7 @@ echo -e "${BLUE}Serviços rodando:${NC}"
 echo -e "  ${YELLOW}MongoDB:${NC}          mongodb://root:root@localhost:27017"
 echo -e "  ${YELLOW}Auth Service:${NC}     http://localhost:8080"
 echo -e "  ${YELLOW}Schedule Service:${NC} http://localhost:8083"
+echo -e "  ${YELLOW}Stock Service:${NC}    http://localhost:8084"
 echo -e "  ${YELLOW}BFF:${NC}              http://localhost:3000"
 echo -e "  ${YELLOW}Frontend:${NC}         http://localhost:5173"
 echo ""

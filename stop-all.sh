@@ -64,6 +64,22 @@ else
     echo -e "${YELLOW}⚠ PID do Schedule Service não encontrado${NC}"
 fi
 
+# Parar Stock Service
+echo -e "${YELLOW}Parando Stock Service...${NC}"
+STOCK_DIR="$BASE_DIR/fa-stock-service"
+if [ -f "$STOCK_DIR/.stock.pid" ]; then
+    STOCK_PID=$(cat "$STOCK_DIR/.stock.pid")
+    if kill -0 $STOCK_PID 2>/dev/null; then
+        kill $STOCK_PID
+        echo -e "${GREEN}✓ Stock Service parado (PID: $STOCK_PID)${NC}"
+    else
+        echo -e "${YELLOW}⚠ Stock Service já estava parado${NC}"
+    fi
+    rm "$STOCK_DIR/.stock.pid"
+else
+    echo -e "${YELLOW}⚠ PID do Stock Service não encontrado${NC}"
+fi
+
 # Parar Backend (Auth Service)
 echo -e "${YELLOW}Parando Auth Service...${NC}"
 AUTH_SERVICE_DIR="$BASE_DIR/fa-auth-service"

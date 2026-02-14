@@ -95,6 +95,36 @@ fi
 
 echo ""
 
+# Status Stock Service
+echo -e "${BLUE}Stock Service (fa-stock-service):${NC}"
+STOCK_DIR="$BASE_DIR/fa-stock-service"
+if [ -f "$STOCK_DIR/.stock.pid" ]; then
+    STOCK_PID=$(cat "$STOCK_DIR/.stock.pid")
+    if kill -0 $STOCK_PID 2>/dev/null; then
+        STOCK_STATUS="${GREEN}✓ Rodando${NC}"
+        echo -e "  Status: $STOCK_STATUS"
+        echo -e "  PID:    $STOCK_PID"
+        echo -e "  URL:    http://localhost:8084"
+        
+        # Tentar verificar health
+        if command -v curl >/dev/null 2>&1; then
+            HEALTH=$(curl -s http://localhost:8084/health 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo -e "  Health: ${GREEN}✓ OK${NC}"
+            else
+                echo -e "  Health: ${RED}✗ Não responde${NC}"
+            fi
+        fi
+    else
+        echo -e "  Status: ${RED}✗ Parado (PID inválido)${NC}"
+        rm "$STOCK_DIR/.stock.pid"
+    fi
+else
+    echo -e "  Status: ${RED}✗ Parado${NC}"
+fi
+
+echo ""
+
 # Status BFF
 echo -e "${BLUE}BFF (fa-admin-bff):${NC}"
 BFF_DIR="$BASE_DIR/fa-admin-bff"
@@ -159,6 +189,8 @@ echo -e "${BLUE}================================${NC}"
 # Verificar se tudo está rodando
 MONGO_OK=false
 BACKEND_OK=false
+SCHEDULE_OK=false
+STOCK_OK=false
 BFF_OK=false
 FRONTEND_OK=false
 
@@ -170,6 +202,22 @@ if [ -f "$AUTH_SERVICE_DIR/.backend.pid" ]; then
     BACKEND_PID=$(cat "$AUTH_SERVICE_DIR/.backend.pid")
     if kill -0 $BACKEND_PID 2>/dev/null; then
         BACKEND_OK=true
+    fi
+fi
+
+SCHEDULE_DIR="$BASE_DIR/fa-schedule-service"
+if [ -f "$SCHEDULE_DIR/.schedule.pid" ]; then
+    SCHEDULE_PID=$(cat "$SCHEDULE_DIR/.schedule.pid")
+    if kill -0 $SCHEDULE_PID 2>/dev/null; then
+        SCHEDULE_OK=true
+    fi
+fi
+
+STOCK_DIR="$BASE_DIR/fa-stock-service"
+if [ -f "$STOCK_DIR/.stock.pid" ]; then
+    STOCK_PID=$(cat "$STOCK_DIR/.stock.pid")
+    if kill -0 $STOCK_PID 2>/dev/null; then
+        STOCK_OK=true
     fi
 fi
 
@@ -188,13 +236,13 @@ if [ -f "$FRONTEND_DIR/.frontend.pid" ]; then
     fi
 fi
 
-if $MONGO_OK && $BACKEND_OK && $BFF_OK && $FRONTEND_OK; then
+if $MONGO_OK && $BACKEND_OK && $SCHEDULE_OK && $STOCK_OK && $BFF_OK && $FRONTEND_OK; then
     echo -e "${GREEN}✓ Todos os serviços estão rodando!${NC}"
     echo ""
     echo -e "${BLUE}Acesse:${NC} http://localhost:5173"
     echo -e "${BLUE}Login:${NC}  admin@farmautomation.com / Admin@123"
-    echo -e "${YELLOW}Nota:${NC}  Frontend → BFF (3000) → Auth Service (8080)"
-elif $MONGO_OK || $BACKEND_OK || $BFF_OK || $FRONTEND_OK; then
+    echo -e "${YELLOW}Nota:${NC}  Frontend → BFF (3000) → Microserviços"
+elif $MONGO_OK || $BACKEND_OK || $SCHEDULE_OK || $STOCK_OK || $BFF_OK || $FRONTEND_OK; then
     echo -e "${YELLOW}⚠ Alguns serviços não estão rodando${NC}"
     echo ""
     echo -e "${BLUE}Comandos úteis:${NC}"
