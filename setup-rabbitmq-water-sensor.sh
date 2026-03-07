@@ -52,24 +52,22 @@ else
     echo "Erro: $response"
 fi
 
-# 2. Criar bindings para os 3 tópicos MQTT
-topics=("water-level" "water-flux" "pump-status")
+# 2. Criar binding para o tópico MQTT water-level
+# NOTA: O sensor publica todos os dados em um único JSON no tópico water-level
+# Apenas 1 binding é necessário para evitar mensagens duplicadas
+echo -n "🔗 Criando binding para water-level... "
 
-for topic in "${topics[@]}"; do
-    echo -n "🔗 Criando binding para $topic... "
-    
-    response=$(make_request POST "bindings/%2F/e/amq.topic/q/$QUEUE_NAME" "{
-      \"routing_key\": \"$topic\",
-      \"arguments\": {}
-    }")
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓${NC}"
-    else
-        echo -e "${RED}✗${NC}"
-        echo "Erro: $response"
-    fi
-done
+response=$(make_request POST "bindings/%2F/e/amq.topic/q/$QUEUE_NAME" "{
+  \"routing_key\": \"water-level\",
+  \"arguments\": {}
+}")
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓${NC}"
+else
+    echo -e "${RED}✗${NC}"
+    echo "Erro: $response"
+fi
 
 echo ""
 echo "================================================"

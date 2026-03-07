@@ -1,0 +1,92 @@
+---
+# RabbitMQ para desenvolvimento local no Minikube
+# Versão simplificada (sem RabbitMQ Cluster Operator)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: farm-automation
+  labels:
+    app: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.12-management
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        - containerPort: 1883
+          name: mqtt
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "guest"
+        - name: RABBITMQ_DEFAULT_PASS
+          value: "guest"
+        - name: RABBITMQ_ENABLED_PLUGINS_FILE
+          value: "/etc/rabbitmq/enabled_plugins"
+        volumeMounts:
+        - name: rabbitmq-config
+          mountPath: /etc/rabbitmq/enabled_plugins
+          subPath: enabled_plugins
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        readinessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "ping"]
+          initialDelaySeconds: 20
+          periodSeconds: 10
+      volumes:
+      - name: rabbitmq-config
+        configMap:
+          name: rabbitmq-config
+      - name: rabbitmq-data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: farm-automation
+data:
+  enabled_plugins: |
+    [rabbitmq_management,rabbitmq_mqtt,rabbitmq_prometheus].
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: farm-automation
+  labels:
+    app: rabbitmq
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+  - port: 5672
+    targetPort: 5672
+    name: amqp
+  - port: 15672
+    targetPort: 15672
+    name: management
+  - port: 1883
+    targetPort: 1883
+    name: mqtt
+  type: ClusterIP

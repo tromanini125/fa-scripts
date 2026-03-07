@@ -1,0 +1,82 @@
+---
+# fa-admin-web — Minikube (imagem local amd64)
+# ConfigMap aponta o BFF para o NodePort do Minikube
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fa-admin-web-config
+  namespace: farm-automation
+data:
+  VITE_API_URL: "http://192.168.49.2:30080/api"
+  VITE_APP_NAME: "Farm Automation Admin (DEV)"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fa-admin-web
+  namespace: farm-automation
+  labels:
+    app: fa-admin-web
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fa-admin-web
+  template:
+    metadata:
+      labels:
+        app: fa-admin-web
+        tier: frontend
+    spec:
+      containers:
+      - name: fa-admin-web
+        image: fa-admin-web:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+          name: http
+        envFrom:
+        - configMapRef:
+            name: fa-admin-web-config
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fa-admin-web
+  namespace: farm-automation
+  labels:
+    app: fa-admin-web
+spec:
+  type: NodePort
+  selector:
+    app: fa-admin-web
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30000
+    protocol: TCP
+    name: http

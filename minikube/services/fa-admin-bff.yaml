@@ -1,0 +1,90 @@
+---
+# fa-admin-bff — Minikube (imagem local amd64)
+# ConfigMap aponta para serviços internos do cluster
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fa-admin-bff-config
+  namespace: farm-automation
+data:
+  PORT: "8080"
+  ENVIRONMENT: "development"
+  OPENWEATHER_API_KEY: "YOUR_OPENWEATHER_API_KEY"
+  AUTH_SERVICE_URL: "http://fa-auth-service:8080"
+  SCHEDULE_SERVICE_URL: "http://fa-schedule-service:8080"
+  STOCK_SERVICE_URL: "http://fa-stock-service:8080"
+  DATA_CONSUMER_URL: "http://fa-data-consumer-service:8086"
+  FINANCE_SERVICE_URL: "http://fa-finance-service:8080"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fa-admin-bff
+  namespace: farm-automation
+  labels:
+    app: fa-admin-bff
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fa-admin-bff
+  template:
+    metadata:
+      labels:
+        app: fa-admin-bff
+        tier: backend
+    spec:
+      containers:
+      - name: fa-admin-bff
+        image: fa-admin-bff:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: http
+        envFrom:
+        - configMapRef:
+            name: fa-admin-bff-config
+        - secretRef:
+            name: fa-admin-bff-secret
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 5
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fa-admin-bff
+  namespace: farm-automation
+  labels:
+    app: fa-admin-bff
+spec:
+  type: NodePort
+  selector:
+    app: fa-admin-bff
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080
+    protocol: TCP
+    name: http

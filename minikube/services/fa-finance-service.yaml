@@ -1,0 +1,83 @@
+---
+# fa-finance-service — Minikube (imagem local amd64)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fa-finance-service
+  namespace: farm-automation
+  labels:
+    app: fa-finance-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fa-finance-service
+  template:
+    metadata:
+      labels:
+        app: fa-finance-service
+        tier: backend
+    spec:
+      containers:
+      - name: fa-finance-service
+        image: fa-finance-service:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-uri
+        - name: MONGODB_DATABASE
+          value: "farm_automation_finance"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: fa-admin-bff-secret
+              key: JWT_SECRET
+        - name: PORT
+          value: "8080"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fa-finance-service
+  namespace: farm-automation
+  labels:
+    app: fa-finance-service
+spec:
+  selector:
+    app: fa-finance-service
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+    name: http
+  type: ClusterIP

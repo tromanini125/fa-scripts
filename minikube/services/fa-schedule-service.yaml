@@ -1,0 +1,83 @@
+---
+# fa-schedule-service — Minikube (imagem local amd64)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fa-schedule-service
+  namespace: farm-automation
+  labels:
+    app: fa-schedule-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fa-schedule-service
+  template:
+    metadata:
+      labels:
+        app: fa-schedule-service
+        tier: backend
+    spec:
+      containers:
+      - name: fa-schedule-service
+        image: fa-schedule-service:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: mongodb-uri
+        - name: MONGODB_DATABASE
+          value: "farm_automation_schedule"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: fa-admin-bff-secret
+              key: JWT_SECRET
+        - name: PORT
+          value: "8080"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fa-schedule-service
+  namespace: farm-automation
+  labels:
+    app: fa-schedule-service
+spec:
+  selector:
+    app: fa-schedule-service
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+    name: http
+  type: ClusterIP
