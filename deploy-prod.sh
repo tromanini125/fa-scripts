@@ -42,7 +42,7 @@ for arg in "$@"; do
   fi
 done
 
-ALL_SERVICES=("auth" "schedule" "stock" "finance" "data-consumer" "bff" "web")
+ALL_SERVICES=("auth" "schedule" "stock" "finance" "notification" "data-consumer" "bff" "web" "gateway")
 
 # ─── Seleção interativa se nenhum serviço foi passado por argumento ───
 if [[ ${#SERVICES_ARG[@]} -eq 0 ]]; then
@@ -52,7 +52,7 @@ if [[ ${#SERVICES_ARG[@]} -eq 0 ]]; then
   echo ""
   echo -e "${_cyan}Selecione os serviços para deploy:${_reset}"
   echo ""
-  echo -e "  ${_bold}0)${_reset} ${_yellow}TODOS${_reset} (auth, schedule, stock, finance, data-consumer, bff, web)"
+  echo -e "  ${_bold}0)${_reset} ${_yellow}TODOS${_reset} (auth, schedule, stock, finance, data-consumer, bff, web, gateway)"
   for i in "${!ALL_SERVICES[@]}"; do
     echo -e "  ${_bold}$((i+1)))${_reset} ${ALL_SERVICES[$i]}"
   done
@@ -94,7 +94,12 @@ echo -e "${_red}${_bold}╚═════════════════�
 echo ""
 echo -e "${_cyan}📋 Serviços: ${_yellow}${SERVICES[*]}${_reset}"
 echo -e "${_cyan}📋 Contexto: ${_yellow}${PROD_CONTEXT}${_reset}"
-echo -e "${_cyan}📋 Build:    ${_yellow}${APPLY_ONLY:+somente apply}${APPLY_ONLY:-build + push + apply}${_reset}"
+if [[ "$APPLY_ONLY" == true ]]; then
+  BUILD_MODE="somente apply"
+else
+  BUILD_MODE="build + push + apply"
+fi
+echo -e "${_cyan}📋 Build:    ${_yellow}${BUILD_MODE}${_reset}"
 echo ""
 
 # ─── Confirmação de segurança ───
@@ -142,15 +147,39 @@ if [[ "$APPLY_ONLY" == false ]]; then
     echo ""
   }
 
+  apply_ingress_with_retry() {
+    local manifest_path="$1"
+    local attempts=3
+    local wait_seconds=5
+
+    for attempt in $(seq 1 "${attempts}"); do
+      if kubectl apply -f "${manifest_path}"; then
+        echo -e "  ${_green}✅ Ingress aplicado${_reset}"
+        return 0
+      fi
+
+      echo -e "  ${_yellow}⚠️ falha ao aplicar Ingress (tentativa ${attempt}/${attempts})${_reset}"
+      if [[ "${attempt}" -lt "${attempts}" ]]; then
+        echo -e "  ${_cyan}↻ tentando novamente em ${wait_seconds}s...${_reset}"
+        sleep "${wait_seconds}"
+      fi
+    done
+
+    echo -e "  ${_red}❌ não foi possível aplicar o Ingress após ${attempts} tentativas${_reset}"
+    return 1
+  }
+
   for SERVICE in "${SERVICES[@]}"; do
     case "${SERVICE}" in
-      auth)          build_and_push "fa-auth-service"     "${FA_BASE}/fa-auth-service" ;;
-      schedule)      build_and_push "fa-schedule-service"  "${FA_BASE}/fa-schedule-service" ;;
-      stock)         build_and_push "fa-stock-service"     "${FA_BASE}/fa-stock-service" ;;
-      finance)       build_and_push "fa-finance-service"   "${FA_BASE}/fa-finance-service" ;;
-      data-consumer) build_and_push "fa-data-consumer"     "${FA_BASE}/fa-data-consumer" ;;
-      bff)           build_and_push "fa-admin-bff"         "${FA_BASE}/fa-admin-bff" ;;
-      web)           build_and_push "fa-admin-web"         "${FA_BASE}/fa-admin-web" ;;
+      auth)          build_and_push "fa-auth-service"         "${FA_BASE}/fa-auth-service" ;;
+      schedule)      build_and_push "fa-schedule-service"     "${FA_BASE}/fa-schedule-service" ;;
+      stock)         build_and_push "fa-stock-service"        "${FA_BASE}/fa-stock-service" ;;
+      finance)       build_and_push "fa-finance-service"      "${FA_BASE}/fa-finance-service" ;;
+      notification)  build_and_push "fa-notification-service" "${FA_BASE}/fa-notification-service" ;;
+      data-consumer) build_and_push "fa-data-consumer"        "${FA_BASE}/fa-data-consumer" ;;
+      bff)           build_and_push "fa-admin-bff"            "${FA_BASE}/fa-admin-bff" ;;
+      web)           build_and_push "fa-admin-web"            "${FA_BASE}/fa-admin-web" ;;
+      gateway)       build_and_push "fa-gateway"              "${FA_BASE}/fa-gateway" ;;
     esac
   done
 fi
@@ -177,6 +206,10 @@ for SERVICE in "${SERVICES[@]}"; do
       kubectl apply -f "${FA_BASE}/fa-finance-service/k8s/deployment-k8s.yaml"
       echo -e "  ${_green}✅ fa-finance-service${_reset}"
       ;;
+    notification)
+      kubectl apply -f "${FA_BASE}/fa-notification-service/k8s/deployment.yaml"
+      echo -e "  ${_green}✅ fa-notification-service${_reset}"
+      ;;
     data-consumer)
       kubectl apply -f "${FA_BASE}/fa-data-consumer/k8s/deployment.yaml"
       echo -e "  ${_green}✅ fa-data-consumer${_reset}"
@@ -189,14 +222,17 @@ for SERVICE in "${SERVICES[@]}"; do
       kubectl apply -f "${FA_BASE}/fa-admin-web/k8s/deployment.yaml"
       echo -e "  ${_green}✅ fa-admin-web${_reset}"
       ;;
+    gateway)
+      kubectl apply -f "${FA_BASE}/fa-gateway/k8s/deployment.yaml"
+      echo -e "  ${_green}✅ fa-gateway${_reset}"
+      ;;
   esac
 done
 
 # ─── Ingress ───
 echo ""
 echo -e "${_cyan}📡 Aplicando Ingress...${_reset}"
-kubectl apply -f "${FA_CLUSTER}/nginx/farm-automation-ingress.yaml"
-echo -e "  ${_green}✅ Ingress aplicado${_reset}"
+apply_ingress_with_retry "${FA_CLUSTER}/nginx/farm-automation-ingress.yaml"
 
 # ─── Rollout restart (apenas serviços selecionados) ───
 echo ""
@@ -207,9 +243,11 @@ for SERVICE in "${SERVICES[@]}"; do
     schedule)      DEPLOY_NAME="fa-schedule-service" ;;
     stock)         DEPLOY_NAME="fa-stock-service" ;;
     finance)       DEPLOY_NAME="fa-finance-service" ;;
+    notification)  DEPLOY_NAME="fa-notification-service" ;;
     data-consumer) DEPLOY_NAME="fa-data-consumer" ;;
     bff)           DEPLOY_NAME="fa-admin-bff" ;;
     web)           DEPLOY_NAME="fa-admin-web" ;;
+    gateway)       DEPLOY_NAME="fa-gateway" ;;
     *)             continue ;;
   esac
   kubectl rollout restart deployment/"${DEPLOY_NAME}" -n "${NAMESPACE}" 2>/dev/null && \
@@ -225,9 +263,11 @@ for SERVICE in "${SERVICES[@]}"; do
     schedule)      DEPLOY_NAME="fa-schedule-service" ;;
     stock)         DEPLOY_NAME="fa-stock-service" ;;
     finance)       DEPLOY_NAME="fa-finance-service" ;;
+    notification)  DEPLOY_NAME="fa-notification-service" ;;
     data-consumer) DEPLOY_NAME="fa-data-consumer" ;;
     bff)           DEPLOY_NAME="fa-admin-bff" ;;
     web)           DEPLOY_NAME="fa-admin-web" ;;
+    gateway)       DEPLOY_NAME="fa-gateway" ;;
     *)             continue ;;
   esac
   kubectl rollout status deployment/"${DEPLOY_NAME}" -n "${NAMESPACE}" --timeout=180s 2>/dev/null || true
@@ -243,4 +283,5 @@ echo -e "${_green}║   ✅ Deploy de produção concluído!               ║${
 echo -e "${_green}║                                                  ║${_reset}"
 echo -e "${_green}║   🌐 https://admin.romanini.net                  ║${_reset}"
 echo -e "${_green}║   🔌 https://adminbff.romanini.net               ║${_reset}"
+echo -e "${_green}║   🚪 https://gateway.romanini.net                ║${_reset}"
 echo -e "${_green}╚══════════════════════════════════════════════════╝${_reset}"

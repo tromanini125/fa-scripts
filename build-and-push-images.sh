@@ -10,6 +10,13 @@ REGISTRY="ghcr.io"
 
 echo "🔨 Building and pushing Docker images to GitHub Container Registry..."
 
+# fa-gateway
+echo "📦 Building fa-gateway..."
+cd /home/thiago/Documents/Projetos/farm-automation/fa-gateway
+docker build -t ${REGISTRY}/${GITHUB_USERNAME}/fa-gateway:latest .
+docker push ${REGISTRY}/${GITHUB_USERNAME}/fa-gateway:latest
+echo "✅ fa-gateway pushed successfully"
+
 # fa-auth-service
 echo "📦 Building fa-auth-service..."
 cd /home/thiago/Documents/Projetos/farm-automation/fa-auth-service

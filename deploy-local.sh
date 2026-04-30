@@ -35,7 +35,7 @@ for arg in "$@"; do
   fi
 done
 
-ALL_SERVICES=("auth" "schedule" "stock" "finance" "data-consumer" "bff" "web")
+ALL_SERVICES=("auth" "schedule" "stock" "finance" "data-consumer" "bff" "web" "gateway")
 SERVICES=("${SERVICES_ARG[@]:-${ALL_SERVICES[@]}}")
 
 echo -e "${_cyan}╔══════════════════════════════════════════════════╗${_reset}"
@@ -122,6 +122,9 @@ if [[ "$NO_BUILD" == false ]]; then
       web)
         build_image "fa-admin-web" "${FA_BASE}/fa-admin-web"
         ;;
+      gateway)
+        build_image "fa-gateway" "${FA_BASE}/fa-gateway"
+        ;;
       *)
         echo -e "${_yellow}⚠️  Serviço desconhecido: '${SERVICE}'. Ignorando.${_reset}"
         ;;
@@ -166,6 +169,10 @@ for SERVICE in "${SERVICES[@]}"; do
       kubectl apply -f "${SCRIPT_DIR}/minikube/services/fa-admin-web.yaml"
       echo -e "  ${_green}✅ fa-admin-web${_reset}"
       ;;
+    gateway)
+      kubectl apply -f "${SCRIPT_DIR}/minikube/services/fa-gateway.yaml"
+      echo -e "  ${_green}✅ fa-gateway${_reset}"
+      ;;
   esac
 done
 
@@ -181,6 +188,7 @@ for SERVICE in "${SERVICES[@]}"; do
     data-consumer) kubectl rollout restart deployment fa-data-consumer -n "${NAMESPACE}" ;;
     bff)         kubectl rollout restart deployment fa-admin-bff -n "${NAMESPACE}" ;;
     web)         kubectl rollout restart deployment fa-admin-web -n "${NAMESPACE}" ;;
+    gateway)     kubectl rollout restart deployment fa-gateway -n "${NAMESPACE}" ;;
   esac
 done
 
@@ -202,9 +210,11 @@ echo -e "${_green}╠═══════════════════�
 echo -e "${_green}║                                                  ║${_reset}"
 echo -e "${_green}║   🌐 Frontend: ${_yellow}http://${MINIKUBE_IP}:30000${_green}          ║${_reset}"
 echo -e "${_green}║   🔌 BFF API:  ${_yellow}http://${MINIKUBE_IP}:30080${_green}          ║${_reset}"
+echo -e "${_green}║   🚪 Gateway:  ${_yellow}http://${MINIKUBE_IP}:30081${_green}          ║${_reset}"
 echo -e "${_green}║                                                  ║${_reset}"
 echo -e "${_green}║   Ou via minikube service:                       ║${_reset}"
 echo -e "${_green}║   minikube service fa-admin-web -n farm-automation║${_reset}"
 echo -e "${_green}║   minikube service fa-admin-bff -n farm-automation║${_reset}"
+echo -e "${_green}║   minikube service fa-gateway -n farm-automation ║${_reset}"
 echo -e "${_green}║                                                  ║${_reset}"
 echo -e "${_green}╚══════════════════════════════════════════════════╝${_reset}"
