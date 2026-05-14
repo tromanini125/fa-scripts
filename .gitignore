@@ -2,3 +2,7 @@
 *.log
 *.pid
 nohup.out
+__pycache__/
+*.py[cod]
+backups/
+*firebase-adminsdk*.json
